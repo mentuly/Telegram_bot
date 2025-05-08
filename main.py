@@ -3,6 +3,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
+from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = 'https://web-production-8dd7d.up.railway.app/'  # <- заміниш після деплою
@@ -10,7 +11,7 @@ WEBHOOK_URL = 'https://web-production-8dd7d.up.railway.app/'  # <- заміни�
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-@dp.message(commands=["start"])
+@dp.message(CommandStart())
 async def start_handler(message: Message):
     await message.answer("Привіт!")
 
