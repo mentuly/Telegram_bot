@@ -10,5 +10,35 @@
       "topic": "Gratitude",
       "type": "video",
       "link": "https://example.com/video1.mp4"
+    },
+    {
+      "day": "Wednesday",
+      "topic": "Growth Mindset",
+      "type": "audio",
+      "link": "https://example.com/audio1.mp3"
+    },
+    {
+      "day": "Thursday",
+      "topic": "Gratitude",
+      "type": "video",
+      "link": "https://example.com/video1.mp4"
+    },
+    {
+      "day": "Friday",
+      "topic": "Gratitude",
+      "type": "video",
+      "link": "https://example.com/video1.mp4"
+    },
+    {
+      "day": "Saturday",
+      "topic": "Gratitude",
+      "type": "video",
+      "link": "https://example.com/video1.mp4"
+    },
+    {
+      "day": "Sunday",
+      "topic": "Gratitude",
+      "type": "video",
+      "link": "https://example.com/video1.mp4"
     }
   ]  
