@@ -1,0 +1,14 @@
+[
+    {
+      "day": "Monday",
+      "topic": "Growth Mindset",
+      "type": "audio",
+      "link": "https://example.com/audio1.mp3"
+    },
+    {
+      "day": "Tuesday",
+      "topic": "Gratitude",
+      "type": "video",
+      "link": "https://example.com/video1.mp4"
+    }
+  ]  
