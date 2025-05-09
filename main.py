@@ -1,83 +1,96 @@
+import asyncio
 import os
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
-from aiogram.filters import Command
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
-from pydub import AudioSegment
-import speech_recognition as sr
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.enums import ParseMode
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.utils.markdown import hbold
+from datetime import datetime, timedelta
+
 
 TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = 'https://web-production-8dd7d.up.railway.app/'
 
 bot = Bot(token=TOKEN)
+    
 dp = Dispatcher()
 
-@dp.message(Command('start'))
-async def start(message: Message):
-    await message.answer(
-        "Привіт! Цей бот може:\n"
-        "🔹 /voice_interpreter - перетворювати голосові повідомлення в текст\n"
-        "🔹 /echo - повторювати ваші текстові повідомлення\n\n"
-        "Оберіть потрібну функцію!"
-    )
+DAILY_CONTENT = {
+    1: {
+        "title": "Mindful Listening",
+        "link": "https://example.com/day1.mp3"
+    },
+    2: {
+        "title": "Vocabulary Expansion",
+        "link": "https://example.com/day2.mp4"
+    },
+}
 
-@dp.message(Command('voice_interpreter'))
-async def voice_interpreter_mode(message: Message):
-    await message.answer("🔊 Надішліть голосове повідомлення для розпізнавання.")
+user_progress = {}
 
-@dp.message(Command('echo'))
-async def echo_mode(message: Message):
-    await message.answer("🔄 Я повторю всі ваші повідомлення!")
+@dp.message(F.text == "/start")
+async def cmd_start(message: Message):
+    user_progress[message.from_user.id] = {"current_day": 1, "last_seen": datetime.now()}
+    await message.answer("👋 Welcome to Influbook bot! Let's start your English journey.")
+    await send_daily_content(message.from_user.id)
 
-@dp.message(lambda message: message.voice)
-async def handle_voice(message: Message):
-    file_info = await bot.get_file(message.voice.file_id)
-    file_path = file_info.file_path
-    downloaded_file = await bot.download_file(file_path)
+async def send_daily_content(user_id):
+    day = user_progress.get(user_id, {}).get("current_day", 1)
+    content = DAILY_CONTENT.get(day)
 
-    ogg_file = f"voice_{message.from_user.id}.ogg"
-    wav_file = f"voice_{message.from_user.id}.wav"
+    if not content:
+        await bot.send_message(user_id, "🎉 You've completed all available content! Stay tuned for more.")
+        return
 
-    with open(ogg_file, 'wb') as f:
-        f.write(downloaded_file.read())
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"Mark Day {day} as complete ✅", callback_data=f"complete:{day}")]
+    ])
 
-    AudioSegment.from_file(ogg_file).export(wav_file, format="wav")
+    text = f"<b>Day {day}</b> - {content['title']}\
+\n🎧 {content['link']}\n\nListen & then open your Influbook to reflect."
+    await bot.send_message(user_id, text, reply_markup=markup)
 
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(wav_file) as source:
-        audio = recognizer.record(source)
+@dp.callback_query(F.data.startswith("complete:"))
+async def mark_complete(callback: CallbackQuery):
+    day = int(callback.data.split(":")[1])
+    user_id = callback.from_user.id
+    user_progress[user_id]["current_day"] = day + 1
+    user_progress[user_id]["last_seen"] = datetime.now()
+    await callback.message.edit_text(callback.message.text + "\n\n✅ Marked as complete!")
 
-    try:
-        text = recognizer.recognize_google(audio, language="uk-UA")
-        await message.answer(f"📝 Розпізнаний текст:\n{text}")
-    except sr.UnknownValueError:
-        await message.answer("Не вдалося розпізнати голос.")
-    except sr.RequestError as e:
-        await message.answer(f"Помилка сервера: {e}")
+@dp.message(F.text.lower().contains("english"))
+async def evening_reflection(message: Message):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Done", callback_data="reflect_done")
+    builder.button(text="📝 Write more", callback_data="reflect_more")
+    await message.answer("How was your English today? Just one sentence:", reply_markup=builder.as_markup())
 
-    os.remove(ogg_file)
-    os.remove(wav_file)
+@dp.callback_query(F.data == "reflect_done")
+async def reflect_done(callback: CallbackQuery):
+    await callback.message.edit_text("✅ Thanks for reflecting! See you tomorrow.")
 
-@dp.message(lambda message: message.text and not message.text.startswith('/'))
-async def echo_message(message: Message):
-    await message.answer(f"🔁 Ви сказали: {message.text}")
+@dp.callback_query(F.data == "reflect_more")
+async def reflect_more(callback: CallbackQuery):
+    await callback.message.edit_text("📝 Feel free to write more and share it with us later!")
 
-async def on_startup(app: web.Application):
-    await bot.set_webhook(WEBHOOK_URL)
+async def missed_day_reminder():
+    while True:
+        for user_id, data in user_progress.items():
+            if datetime.now() - data["last_seen"] > timedelta(days=2):
+                await bot.send_message(user_id,
+                    "Missed a day? No worries – let’s continue.\nTap below to resume from your last page.",
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="📖 Resume", callback_data="resume")]]
+                    )
+                )
+        await asyncio.sleep(86400)
 
-async def on_shutdown(app: web.Application):
-    await bot.delete_webhook()
+@dp.callback_query(F.data == "resume")
+async def resume_content(callback: CallbackQuery):
+    await send_daily_content(callback.from_user.id)
 
-async def index(request):
-    return web.Response(text="Бот працює!", status=200)
+async def main():
+    await dp.start_polling(bot)
 
-app = web.Application()
-app.router.add_get("/", index)
-
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
-app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
-
-if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == '__main__':
+    asyncio.run(main())
