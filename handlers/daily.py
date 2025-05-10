@@ -1,41 +1,40 @@
 import json
 import datetime
-from aiogram import Bot
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from pathlib import Path
-
-DATA_FILE = Path("data/content.json")
-
+from aiogram import types, Dispatcher
+from aiogram.filters import CommandStart
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from data import users
 
 def get_today_content():
-    weekday = datetime.datetime.now().strftime("%A")
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        for entry in data:
-            if entry["day"] == weekday:
-                return entry
-    return None
+    with open("data/content.json", "r", encoding="utf-8") as f:
+        content = json.load(f)
+    weekday = datetime.datetime.utcnow().strftime("%A").lower()
+    return content.get(weekday)
 
-
-async def send_daily_message(bot: Bot, user_id: int):
-    content = get_today_content()
-    if not content:
+async def send_daily_message(bot, user_id):
+    data = get_today_content()
+    if not data:
         return
+    text = f"🗓 *{data['day'].capitalize()} — {data['topic']}*\n" \
+           f"[Перейти до контенту]({data['link']})\n\n" \
+           f"_Listen & then open your Influbook to reflect_"
 
-    day = content["day"]
-    topic = content["topic"]
-    link = content["link"]
-    content_type = content["type"]
-
-    text = (
-        f"📅 *{day}*\n"
-        f"🧠 *Topic:* {topic}\n\n"
-        f"🎧 *{content_type.capitalize()}:* [Open]({link})\n\n"
-        f"✨ _Reflect: Open your Influbook and write your thoughts._"
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Відкрити контент", url=data["link"])]
+        ]
     )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔗 Open Resource", url=link)]
-    ])
+    await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
 
-    await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard, parse_mode="Markdown")
+def register_handlers(dp: Dispatcher):
+    @dp.message(CommandStart())
+    async def cmd_start(message: types.Message):
+        user_id = message.from_user.id
+        if users.add_user(user_id):
+            from scheduler import setup_scheduler
+            setup_scheduler(message.bot, user_id)
+            await send_daily_message(message.bot, user_id)
+            await message.answer("✅ Ви успішно зареєстровані! Щоденні повідомлення надсилатимуться автоматично.")
+        else:
+            await message.answer("🔔 Ви вже зареєстровані.")
