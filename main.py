@@ -1,62 +1,61 @@
-import os
-import json
 import asyncio
 from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message
-from aiogram.filters import CommandStart
+from aiogram.filters import Command
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from config import BOT_TOKEN, IS_TEST_MODE, SEND_TIME, TIMEZONE, WEBHOOK_URL
+from database import add_user, get_users, update_last_sent
+from lessons import lessons
+from datetime import datetime
+import os
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiohttp import web
-from dotenv import load_dotenv
-import logging
 
-from handlers.daily import register_handlers, send_daily_message
-from scheduler import setup_scheduler
-from data import users
-
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://web-production-8dd7d.up.railway.app/")
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher()
+scheduler = AsyncIOScheduler()
 
-# Зберігаємо авторизованих користувачів у пам'яті
-AUTHORIZED_USERS = set(users.load_users())
+@dp.message(Command("start"))
+async def start_handler(message: Message):
+    add_user(message.from_user.id)
+    await message.answer("Привіт! Починаємо твій 30-денний курс навчання 🧠")
 
-# Команда /start
-@dp.message(CommandStart())
-async def cmd_start(message: Message):
-    user_id = message.from_user.id
-    if user_id not in AUTHORIZED_USERS:
-        AUTHORIZED_USERS.add(user_id)
-        users.save_user(user_id)  # якщо маєш таку функцію
-        await message.answer("✅ Ви підписані на щоденні повідомлення!")
-        await send_daily_message(bot, user_id)
-        setup_scheduler(bot, user_id)
-    else:
-        await message.answer("🔔 Ви вже підписані.")
+async def send_lessons():
+    users = get_users()
+    now = datetime.now()
+    print(f"Завдання відправлено в: {now}")
 
-# Додаткові хендлери
-register_handlers(dp)
+    if not users:
+        print("Немає користувачів у базі даних!")
 
-# Webhook setup
-async def on_startup(app: web.Application):
-    await bot.set_webhook(WEBHOOK_URL)
+    for user_id, start_date_str, last_sent in users:
+        print(f"Перевіряємо користувача {user_id}: останній відправлений день - {last_sent}")
+        
+        start_date = datetime.fromisoformat(start_date_str)
+        days_passed = (now.date() - start_date.date()).days
+        print(f"Кількість пройдених днів: {days_passed}")
+        
+        if days_passed >= len(lessons):
+            print(f"Курс завершено для користувача {user_id}.")
+            continue
 
-    for user_id in AUTHORIZED_USERS:
-        setup_scheduler(bot, user_id)
+        if days_passed > last_sent or (days_passed == 0 and last_sent == 0):
 
-async def on_shutdown(app: web.Application):
-    await bot.delete_webhook()
+            text = lessons[days_passed]
+            print(f"Відправка повідомлення: користувач {user_id}, день {days_passed}, завдання: {text}")
+            await bot.send_message(user_id, f"📚 {text}")
 
-async def index(request):
-    return web.Response(text="Бот працює!", status=200)
+            update_last_sent(user_id, days_passed)
+            print(f"Оновлено останній день для користувача {user_id} на {days_passed}")
+        elif days_passed == last_sent:
+            print(f"Завдання вже відправлено користувачу {user_id}. Пропускаємо.")
+            continue
+        else:
+            missed = days_passed - last_sent
+            print(f"У користувача {user_id} пропуски. Відправляємо повідомлення.")
+            await bot.send_message(user_id, f"📌 У тебе {missed} пропуск(ів). Хочеш надолужити?")
 
-# Запуск aiohttp-сервера
-def run():
+async def start_web_app():
     app = web.Application()
     app.router.add_get("/", index)
 
@@ -64,7 +63,44 @@ def run():
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
 
-    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 5000)))
+    await site.start()
+    print("🌐 Web сервер запущено")
+
+async def start_bot():
+    if IS_TEST_MODE:
+        print("Тестовий режим: завдання відправлятиметься кожні 30 секунд")
+        scheduler.add_job(send_lessons, "interval", seconds=30)
+    else:
+        print(f"Завдання заплановано на час: {SEND_TIME.hour}:{SEND_TIME.minute}")
+        scheduler.add_job(
+            send_lessons,
+            "cron",
+            hour=SEND_TIME.hour,
+            minute=SEND_TIME.minute,
+            timezone=TIMEZONE
+        )
+
+    scheduler.start()
+    await dp.start_polling(bot)
+
+async def main():
+    await asyncio.gather(
+        start_web_app(),
+        start_bot()
+    )
+
+# Webhook setup
+async def on_startup(app: web.Application):
+    await bot.set_webhook(WEBHOOK_URL)
+
+async def on_shutdown(app: web.Application):
+    await bot.delete_webhook()
+
+async def index(request):
+    return web.Response(text="Бот працює!", status=200)
 
 if __name__ == "__main__":
-    run()
+    asyncio.run(main())
