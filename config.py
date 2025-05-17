@@ -15,5 +15,5 @@ else:
     SEND_TIME = None
 
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://web-production-8dd7d.up.railway.app/")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")

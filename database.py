@@ -24,3 +24,24 @@ def get_users():
 def update_last_sent(user_id: int, day: int):
     cursor.execute("UPDATE users SET last_sent = ? WHERE user_id = ?", (day, user_id))
     conn.commit()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS incomplete_tasks (
+    user_id INTEGER,
+    day INTEGER,
+    PRIMARY KEY (user_id, day)
+)
+""")
+conn.commit()
+
+def mark_incomplete(user_id: int, day: int):
+    cursor.execute("INSERT OR IGNORE INTO incomplete_tasks (user_id, day) VALUES (?, ?)", (user_id, day))
+    conn.commit()
+
+def mark_complete(user_id: int, day: int):
+    cursor.execute("DELETE FROM incomplete_tasks WHERE user_id = ? AND day = ?", (user_id, day))
+    conn.commit()
+
+def get_incomplete_tasks(user_id: int):
+    cursor.execute("SELECT day FROM incomplete_tasks WHERE user_id = ?", (user_id,))
+    return [row[0] for row in cursor.fetchall()]
