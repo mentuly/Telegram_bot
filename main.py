@@ -136,6 +136,8 @@ async def start_bot():
         )
 
     scheduler.start()
+    await bot.delete_webhook(drop_pending_updates=True)
+
     await dp.start_polling(bot)
 
 async def main():
