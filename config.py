@@ -2,7 +2,7 @@ import os
 from datetime import time
 import pytz
 
-SEND_TIME_STR = "10:52"
+SEND_TIME_STR = "10:5"
 
 TIMEZONE = pytz.timezone("Europe/Kyiv")
 
@@ -16,4 +16,4 @@ else:
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://web-production-8dd7d.up.railway.app/")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
