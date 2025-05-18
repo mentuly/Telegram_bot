@@ -107,11 +107,19 @@ async def handle_callback(callback: CallbackQuery):
         await callback.message.edit_reply_markup()
         await callback.answer("Завдання позначено як НЕ виконане ❌")
 
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"https://web-production-8dd7d.up.railway.app{WEBHOOK_PATH}"
+
+class LoggingRequestHandler(SimpleRequestHandler):
+    async def handle(self, request):
+        print(f"Incoming request: {request.method} {request.path}")
+        return await super().handle(request)
+
 async def start_web_app():
     app = web.Application()
     app.router.add_get("/", index)
 
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
+    LoggingRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
 
@@ -120,6 +128,15 @@ async def start_web_app():
     site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 5000)))
     await site.start()
     print("🌐 Web сервер запущено")
+
+async def on_startup(app: web.Application):
+    await bot.set_webhook(WEBHOOK_URL)
+
+async def on_shutdown(app: web.Application):
+    await bot.delete_webhook()
+
+async def index(request):
+    return web.Response(text="Бот працює!", status=200)
 
 async def start_bot():
     if IS_TEST_MODE:
@@ -145,16 +162,6 @@ async def main():
         start_web_app(),
         start_bot()
     )
-
-# Webhook setup
-async def on_startup(app: web.Application):
-    await bot.set_webhook(WEBHOOK_URL)
-
-async def on_shutdown(app: web.Application):
-    await bot.delete_webhook()
-
-async def index(request):
-    return web.Response(text="Бот працює!", status=200)
 
 if __name__ == "__main__":
     asyncio.run(main())

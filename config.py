@@ -2,7 +2,7 @@ import os
 from datetime import time
 import pytz
 
-SEND_TIME_STR = "11:22"
+SEND_TIME_STR = "12:15"
 
 TIMEZONE = pytz.timezone("Europe/Kyiv")
 
