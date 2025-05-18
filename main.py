@@ -138,9 +138,11 @@ async def start_bot():
     print("✅ Планувальник запущено")
 
 async def main():
-    async with bot:
+    try:
         await start_bot()
         await start_web_app()
+    finally:
+        await bot.session.close()
 
 # Webhook setup
 async def on_startup(app: web.Application):
