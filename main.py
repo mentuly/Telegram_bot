@@ -135,13 +135,11 @@ async def start_bot():
         )
 
     scheduler.start()
-    await dp.start_polling(bot)
+    print("✅ Планувальник запущено")
 
 async def main():
-    await asyncio.gather(
-        start_web_app(),
-        start_bot()
-    )
+    await start_bot()      # просто запускає розсилку
+    await start_web_app()  # запускає вебсервер з webhook
 
 # Webhook setup
 async def on_startup(app: web.Application):
