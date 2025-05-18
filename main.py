@@ -138,8 +138,9 @@ async def start_bot():
     print("✅ Планувальник запущено")
 
 async def main():
-    await start_bot()      # просто запускає розсилку
-    await start_web_app()  # запускає вебсервер з webhook
+    async with bot:
+        await start_bot()
+        await start_web_app()
 
 # Webhook setup
 async def on_startup(app: web.Application):
