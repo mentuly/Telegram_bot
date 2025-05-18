@@ -136,9 +136,7 @@ async def start_bot():
         )
 
     scheduler.start()
-    # Видаляємо start_polling, бо Webhook вже обробляє повідомлення
-    while True:
-        await asyncio.sleep(3600)
+    await dp.start_polling(bot)
 
 async def main():
     await asyncio.gather(
