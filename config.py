@@ -2,7 +2,7 @@ import os
 from datetime import time
 import pytz
 
-SEND_TIME_STR = "12:26"
+SEND_TIME_STR = "12:17"
 
 TIMEZONE = pytz.timezone("Europe/Kyiv")
 
@@ -13,6 +13,5 @@ if not IS_TEST_MODE:
     SEND_TIME = time(hour=hour, minute=minute)
 else:
     SEND_TIME = None
-
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")

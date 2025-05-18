@@ -14,8 +14,13 @@ scheduler = AsyncIOScheduler()
 
 @dp.message(Command("start"))
 async def start_handler(message: Message):
-    add_user(message.from_user.id)
-    await message.answer("Привіт! Починаємо твій 30-денний курс навчання 🧠")
+    user_id = message.from_user.id
+    existing_users = [user[0] for user in get_users()]
+    if user_id in existing_users:
+        await message.answer("Ви вже приєднані до курсу! ✅\nОчікуйте наступне завдання щодня або скористайтесь /complete_task")
+    else:
+        add_user(user_id)
+        await message.answer("Привіт! Починаємо твій 30-денний курс навчання 🧠")
 
 @dp.message(Command("complete_task"))
 async def complete_task_handler(message: Message):
@@ -26,20 +31,29 @@ async def complete_task_handler(message: Message):
         await message.answer("У тебе немає невиконаних завдань 🎉")
         return
 
-    for day in incomplete_days:
-        text = f"\U0001F4CC День {day + 1}: {lessons[day]}"
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Завершено", callback_data=f"complete:{day}"),
-             InlineKeyboardButton(text="❌ Все ще не завершено", callback_data=f"incomplete:{day}")]
-        ])
-        await message.answer(text, reply_markup=keyboard)
+    buttons = [
+        [InlineKeyboardButton(text=f"День {day + 1}", callback_data=f"select_day:{day}")]
+        for day in incomplete_days
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.answer("Оберіть завдання, яке хочете позначити:", reply_markup=keyboard)
 
 @dp.callback_query()
 async def handle_callback(callback: CallbackQuery):
     data = callback.data
     user_id = callback.from_user.id
 
-    if data.startswith("complete:"):
+    if data.startswith("select_day:"):
+        day = int(data.split(":")[1])
+        text = f"\U0001F4CC День {day + 1}: {lessons[day]}"
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Завершено", callback_data=f"complete:{day}"),
+             InlineKeyboardButton(text="❌ Все ще не завершено", callback_data=f"incomplete:{day}")]
+        ])
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+
+    elif data.startswith("complete:"):
         day = int(data.split(":")[1])
         mark_complete(user_id, day)
         await callback.message.edit_reply_markup()
@@ -81,7 +95,6 @@ async def send_lessons():
             update_last_sent(user_id, days_passed)
             print(f"Оновлено останній день для користувача {user_id} на {days_passed}")
 
-            # Нагадування про пропущені дні
             incomplete_days = get_incomplete_tasks(user_id)
             if incomplete_days:
                 msg = "\U0001F4CC У тебе залишились незавершені дні:\n"
@@ -105,10 +118,6 @@ async def start_bot():
         )
 
     scheduler.start()
-
-    # ВИМКНЕННЯ ВЕБХУКУ
-    await bot.delete_webhook(drop_pending_updates=True)
-
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
