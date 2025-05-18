@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from config import BOT_TOKEN, IS_TEST_MODE, SEND_TIME, TIMEZONE, WEBHOOK_URL
+from config import BOT_TOKEN, IS_TEST_MODE, SEND_TIME, TIMEZONE
 from database import add_user, get_users, update_last_sent
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from database import mark_incomplete, mark_complete, get_incomplete_tasks
@@ -13,6 +13,7 @@ import os
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiohttp import web
 
+WEBHOOK_URL = 'https://web-production-8dd7d.up.railway.app/'
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler()
@@ -135,14 +136,13 @@ async def start_bot():
         )
 
     scheduler.start()
-    print("✅ Планувальник запущено")
+    await dp.start_polling(bot)
 
 async def main():
-    try:
-        await start_bot()
-        await start_web_app()
-    finally:
-        await bot.session.close()
+    await asyncio.gather(
+        start_web_app(),
+        start_bot()
+    )
 
 # Webhook setup
 async def on_startup(app: web.Application):
